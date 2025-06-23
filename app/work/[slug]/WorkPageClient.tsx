@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -6,8 +7,11 @@ import Navigation from "@/components/navigation"
 import BackToTop from "@/components/back-to-top"
 import Footer from "@/components/footer"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { ArrowLeft, ExternalLink } from "lucide-react"
+import Link from "next/link"
 import type { CaseProject } from "@/lib/notion-cases"
+import { getCaseProjects } from "@/lib/notion-cases"
 
 interface WorkPageClientProps {
   params: {
@@ -20,6 +24,7 @@ interface WorkPageClientProps {
 export default function WorkPageClient({ params, initialProject, dataSource }: WorkPageClientProps) {
   const router = useRouter()
   const [project, setProject] = useState<CaseProject | null>(initialProject)
+  const [allProjects, setAllProjects] = useState<CaseProject[]>([])
   const [loading, setLoading] = useState(!initialProject)
   const [error, setError] = useState<string | null>(null)
   const [imageErrors, setImageErrors] = useState<{ [key: string]: boolean }>({})
@@ -28,6 +33,7 @@ export default function WorkPageClient({ params, initialProject, dataSource }: W
     if (!initialProject) {
       fetchProject()
     }
+    fetchAllProjects()
   }, [params.slug, initialProject])
 
   const fetchProject = async () => {
@@ -54,12 +60,105 @@ export default function WorkPageClient({ params, initialProject, dataSource }: W
     }
   }
 
+  const fetchAllProjects = async () => {
+    try {
+      const result = await getCaseProjects()
+      if (result.success && result.data.length > 0) {
+        setAllProjects(result.data)
+      }
+    } catch (error) {
+      console.error("Failed to fetch all projects:", error)
+    }
+  }
+
   const handleImageError = (imageUrl: string) => {
     setImageErrors((prev) => ({ ...prev, [imageUrl]: true }))
   }
 
   const getImageSrc = (imageUrl: string) => {
     return imageErrors[imageUrl] ? "/placeholder.svg?height=400&width=600" : imageUrl
+  }
+
+  // Get current project index
+  const currentProjectIndex = allProjects.findIndex((p) => p.slug === params.slug)
+
+  // Get next and previous projects
+  const getNextProject = () => {
+    if (allProjects.length <= 1) return null
+    const nextIndex = (currentProjectIndex + 1) % allProjects.length
+    return allProjects[nextIndex]
+  }
+
+  const getPreviousProject = () => {
+    if (allProjects.length <= 1) return null
+    const prevIndex = (currentProjectIndex - 1 + allProjects.length) % allProjects.length
+    return allProjects[prevIndex]
+  }
+
+  const nextProject = getNextProject()
+  const previousProject = getPreviousProject()
+
+  // Function to render media in alternating layout
+  const renderAlternatingMedia = (media: string[]) => {
+    const elements = []
+    let index = 0
+
+    while (index < media.length) {
+      if (index % 3 === 0) {
+        // Two images side by side
+        if (index + 1 < media.length) {
+          elements.push(
+            <div key={`pair-${index}`} className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+              <div className="bg-gray-100 rounded-lg overflow-hidden">
+                <img
+                  src={getImageSrc(media[index]) || "/placeholder.svg"}
+                  alt={`${project?.projectTitle} - Image ${index + 1}`}
+                  className="w-full h-auto"
+                  onError={() => handleImageError(media[index])}
+                />
+              </div>
+              <div className="bg-gray-100 rounded-lg overflow-hidden">
+                <img
+                  src={getImageSrc(media[index + 1]) || "/placeholder.svg"}
+                  alt={`${project?.projectTitle} - Image ${index + 2}`}
+                  className="w-full h-auto"
+                  onError={() => handleImageError(media[index + 1])}
+                />
+              </div>
+            </div>
+          )
+          index += 2
+        } else {
+          // Single image if only one left
+          elements.push(
+            <div key={`single-${index}`} className="mb-12">
+              <img
+                src={getImageSrc(media[index]) || "/placeholder.svg"}
+                alt={`${project?.projectTitle} - Image ${index + 1}`}
+                className="w-full h-auto rounded-lg"
+                onError={() => handleImageError(media[index])}
+              />
+            </div>
+          )
+          index += 1
+        }
+      } else {
+        // Full-width image
+        elements.push(
+          <div key={`full-${index}`} className="mb-12">
+            <img
+              src={getImageSrc(media[index]) || "/placeholder.svg"}
+              alt={`${project?.projectTitle} - Image ${index + 1}`}
+              className="w-full h-auto rounded-lg"
+              onError={() => handleImageError(media[index])}
+            />
+          </div>
+        )
+        index += 1
+      }
+    }
+
+    return elements
   }
 
   if (loading) {
@@ -186,22 +285,11 @@ export default function WorkPageClient({ params, initialProject, dataSource }: W
           </div>
         )}
 
-        {/* Project Media */}
+        {/* Project Media - Alternating Layout */}
         {project.projectMedia && project.projectMedia.length > 0 && (
           <div className="mb-12">
             <h2 className="text-xl font-bold text-black mb-6">Project Gallery</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {project.projectMedia.map((media, index) => (
-                <div key={index} className="bg-gray-100 rounded-lg overflow-hidden">
-                  <img
-                    src={getImageSrc(media) || "/placeholder.svg"}
-                    alt={`${project.projectTitle} - Image ${index + 1}`}
-                    className="w-full h-auto"
-                    onError={() => handleImageError(media)}
-                  />
-                </div>
-              ))}
-            </div>
+            {renderAlternatingMedia(project.projectMedia)}
           </div>
         )}
 
@@ -220,6 +308,48 @@ export default function WorkPageClient({ params, initialProject, dataSource }: W
                   />
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Project Navigation */}
+        {(previousProject || nextProject) && (
+          <div className="mb-12">
+            <div className="flex items-center justify-center gap-8">
+              {/* Previous Project */}
+              <div className="flex-1 flex justify-start">
+                {previousProject && (
+                  <Link href={`/work/${previousProject.slug}`}>
+                    <Button
+                      variant="outline"
+                      className="gap-2 px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors border-0"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      Previous project
+                    </Button>
+                  </Link>
+                )}
+              </div>
+
+              {/* Logo in the middle */}
+              <div className="flex-shrink-0">
+                <img src="/logo-footer.svg" alt="Logo" className="w-16 h-16" />
+              </div>
+
+              {/* Next Project */}
+              <div className="flex-1 flex justify-end">
+                {nextProject && (
+                  <Link href={`/work/${nextProject.slug}`}>
+                    <Button
+                      variant="outline"
+                      className="gap-2 px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors border-0"
+                    >
+                      Next project
+                      <ArrowLeft className="w-4 h-4 rotate-180" />
+                    </Button>
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         )}
