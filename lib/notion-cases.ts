@@ -114,7 +114,7 @@ export async function getCaseProjects(): Promise<{
 
     // Get environment variables
     const token = process.env.CASES_TOKEN
-    const databaseId = cleanDatabaseId(process.env.CASES_DATABASE_ID || "")
+    const databaseId = cleanDatabaseId(process.env.CASES_DATABASE_ID || "20855dd5594d805f94d8d0f5686b292d")
 
     metadata.debugInfo.token = token ? `${token.substring(0, 10)}...` : "Not found"
     metadata.debugInfo.databaseId = databaseId
@@ -164,7 +164,16 @@ export async function getCaseProjects(): Promise<{
 
         // Extract required fields with proper field mapping
         const projectTitle = extractTextFromProperty(properties.projectTitle)
-        const slug = extractTextFromProperty(properties.slug)
+        let slug = extractTextFromProperty(properties.slug)
+        
+        // If no slug field exists, generate from projectTitle
+        if (!slug && projectTitle) {
+          slug = projectTitle
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "")
+        }
+        
         const description = extractTextFromProperty(properties.description)
         const team = extractTextFromProperty(properties.team)
         const categoryTags = extractMultiSelectFromProperty(properties.categoryTags?.multi_select || [])

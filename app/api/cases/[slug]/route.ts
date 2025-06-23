@@ -1,11 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getCaseBySlug } from "@/lib/notion-cases"
 
-export async function GET(request: NextRequest, { params }: { params: { slug: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
-    console.log(`🔍 API: Fetching case with slug: ${params.slug}`)
+    const { slug } = await params
+    console.log(`🔍 API: Fetching case with slug: ${slug}`)
 
-    const project = await getCaseBySlug(params.slug)
+    const project = await getCaseBySlug(slug)
 
     if (project) {
       console.log(`✅ API: Found project: ${project.projectTitle}`)
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
       })
     }
 
-    console.log(`❌ API: Project not found: ${params.slug}`)
+    console.log(`❌ API: Project not found: ${slug}`)
     return NextResponse.json(
       {
         success: false,

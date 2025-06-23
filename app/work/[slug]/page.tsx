@@ -3,15 +3,14 @@ import WorkPageClient from "./WorkPageClient"
 import type { Metadata } from "next"
 
 interface Props {
-  params: {
-    slug: string
-  }
+  params: Promise<{ slug: string }>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
+    const { slug } = await params
     // Get project from CMS
-    const project = await getCaseBySlug(params.slug)
+    const project = await getCaseBySlug(slug)
 
     if (project) {
       return {
@@ -32,10 +31,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function WorkPage({ params }: Props) {
   try {
-    console.log(`🔍 Server: Fetching project with slug: ${params.slug}`)
+    console.log(`🔍 Server: Fetching project with slug: ${await params.slug}`)
 
     // Get project from CASES CMS
-    const project = await getCaseBySlug(params.slug)
+    const { slug } = await params
+    const project = await getCaseBySlug(slug)
 
     if (project) {
       console.log(`✅ Server: Found project: ${project.projectTitle}`)
@@ -43,7 +43,7 @@ export default async function WorkPage({ params }: Props) {
     }
 
     // If no project found, show not found page
-    console.log(`❌ Server: Project not found: ${params.slug}`)
+    console.log(`❌ Server: Project not found: ${slug}`)
     return <WorkPageClient params={params} initialProject={null} dataSource="fallback" />
   } catch (error) {
     console.error("Error in WorkPage:", error)
